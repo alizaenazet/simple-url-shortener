@@ -1,0 +1,82 @@
+version: "3.9"
+
+networks:
+  internal:         # traffic only inside the cluster
+    internal: true
+  public:           # exposed to host (gateway + client only)
+  dbnet:            # databases + the services that need them
+
+services:
+  # ──────────────────────────────────────────── GATEWAY
+  gateway:
+    build: ./gateway
+    container_name: gateway
+    ports: [ "8080:8080" ]            # ← ONLY host-visible backend
+    environment:
+      USER_SVC_URL:       http://user-service:3001/
+      SHORTENER_SVC_URL:  http://shortener-service:3002/
+      QR_SVC_URL:         http://qr-service:8000/
+    networks:
+      - public
+      - internal
+
+  # ──────────────────────────────────────────── FRONT-END
+  client:
+    build: ./client
+    container_name: client
+    ports: [ "5173:5173" ]            # ← ONLY host-visible frontend
+    environment:
+      VITE_GATEWAY_URL:  http://localhost:8080
+    networks:
+      - public
+
+  # ──────────────────────────────────────────── USER SERVICE
+  user-service:
+    build:
+      context: ./user-service
+      args: { PORT: 3001 }
+    environment:
+      SVC_NAME: user-service
+    container_name: user-service
+    networks:
+      - internal
+      - dbnet
+
+  # ──────────────────────────────────────────── SHORTENER SERVICE
+  shortener-service:
+    build:
+      context: ./shortener-service
+      args: { PORT: 3002 }
+    environment:
+      SVC_NAME: shortener-service
+    container_name: shortener-service
+    networks:
+      - internal
+      - dbnet
+
+  # ──────────────────────────────────────────── QR SERVICE
+  qr-service:
+    build: ./qr-service
+    container_name: qr-service
+    networks:
+      - internal
+
+  # ──────────────────────────────────────────── DATABASES
+  postgres:
+    image: postgres:16
+    container_name: users-db
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: users
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    networks:
+      - dbnet
+
+  redis:
+    image: redis:7
+    container_name: shortener-redis
+    networks:
+      - dbnet
+
+volumes:
+  pgdata:
