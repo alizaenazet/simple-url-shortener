@@ -65,6 +65,7 @@ services:
   postgres:
     image: postgres:16
     container_name: users-db
+    ports: [ "5432:5432" ]
     environment:
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: users
@@ -75,6 +76,7 @@ services:
   redis:
     image: redis:7
     container_name: shortener-redis
+    ports: [ "6379:6379" ]
     networks:
       - dbnet
 
