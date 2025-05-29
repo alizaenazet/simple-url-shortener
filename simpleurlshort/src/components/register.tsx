@@ -3,7 +3,8 @@ import type React from "react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-const Login = () => {
+const Register = () => {
+    const [fullName, setFullName] = useState("")
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
@@ -15,8 +16,8 @@ const Login = () => {
         setIsLoading(true)
         setError("")
 
-        if (!password.trim()) {
-            setError("Password cannot be empty")
+        if (!fullName.trim() || !email.trim() || !password.trim()) {
+            setError("All fields are required")
         } else if (password.length < 8) {
             setError("Password must be at least 8 characters long")
         } else {
@@ -25,14 +26,14 @@ const Login = () => {
                 await new Promise((resolve) => setTimeout(resolve, 1000))
                 navigate("/dashboard")
             } catch (err) {
-                setError("Invalid email or password")
+                setError("Registration failed. Please try again.")
             } finally {
                 setIsLoading(false)
             }
             return
         }
-        setIsLoading(false)
 
+        setIsLoading(false)
     }
 
     return (
@@ -63,16 +64,33 @@ const Login = () => {
                         >
                             <path d="M481-120v-60h299v-600H481v-60h299q24 0 42 18t18 42v600q0 24-18 42t-42 18H481Zm-55-185-43-43 102-102H120v-60h363L381-612l43-43 176 176-174 174Z" />
                         </svg>
-                        Log in to your account
+                        Create an account
                     </div>
 
-                    <p className="auth-description">Enter your credentials to access your dashboard</p>
+                    <p className="auth-description">Sign up to start creating and tracking your URLs</p>
                     {error && <div className="auth-error">{error}</div>}
 
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
+                            <label htmlFor="fullName">Full name</label>
+                            <input
+                                type="text"
+                                id="fullName"
+                                value={fullName}
+                                onChange={(e) => setFullName(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        <div className="form-group">
                             <label htmlFor="email">Email</label>
-                            <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                            <input
+                                type="email"
+                                id="email"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                            />
                         </div>
 
                         <div className="form-group">
@@ -87,19 +105,17 @@ const Login = () => {
                         </div>
 
                         <button type="submit" className="auth-button" disabled={isLoading}>
-                            {isLoading ? "Logging in..." : "Log in"}
+                            {isLoading ? "Creating account..." : "Create account"}
                         </button>
                     </form>
 
                     <div className="auth-footer">
-                        Don't have an account? <Link to="/register">Sign up</Link>
+                        Already have an account? <Link to="/login">Log in</Link>
                     </div>
                 </div>
-                
             </div>
-            
         </div>
     )
 }
 
-export default Login
+export default Register
