@@ -1,27 +1,103 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { Link } from "react-router-dom"
+import { useState, useEffect } from "react"
+// import { Link } from "react-router-dom" 
 
 const URLShortener = () => {
   const [longUrl, setLongUrl] = useState("")
+  const [customShort, setCustomShort] = useState("")
+  const [expiresInDays, setExpiresInDays] = useState(7)
   const [shortUrl, setShortUrl] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showResult, setShowResult] = useState(false)
   const [activeTab, setActiveTab] = useState<"shortUrl" | "qrCode">("shortUrl")
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Cek staus login saat komponen dimuat
+  // Ini akan memeriksa apakah ada token di localStorage
+  useEffect(() => {
+    const token = localStorage.getItem('authToken')
+    const userData = localStorage.getItem('userData')
+    
+    if (token && userData) {
+      setIsLoggedIn(true)
+      setUser(JSON.parse(userData))
+    }
+  }, [])
+
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-api-gateway.com'
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('authToken')
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    }
+  }
+
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    if (e) e.preventDefault()
     setIsLoading(true)
+    setError("")
+    setSuccess("")
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setShortUrl("https://something.com/short")
-      setShowResult(true)
+      if (isLoggedIn) {
+        const response = await fetch(`${API_BASE_URL}/urls`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            longUrl,
+            customShort: customShort || undefined,
+            expiresInDays
+          })
+        })
+
+        const data = await response.json()
+
+        if (response.ok && data.status === 'success') {
+          setShortUrl(data.data.fullShortUrl)
+          setShowResult(true)
+          setSuccess("Short URL created successfully!")
+          
+          // Reset form
+          setLongUrl("")
+          setCustomShort("")
+          setExpiresInDays(7)
+        } else {
+          // Handle API errors
+          if (data.errors && data.errors.length > 0) {
+            setError(data.errors.map(err => err.message).join(', '))
+          } else {
+            setError(data.message || "Failed to create short URL")
+          }
+          
+          if (response.status === 401) {
+            // Token expired or invalid
+            localStorage.removeItem('authToken')
+            localStorage.removeItem('userData')
+            setIsLoggedIn(false)
+            setUser(null)
+            setError("Session expired. Please login again.")
+          }
+        }
+      } else {
+        // Simulate API call for non-authenticated users
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        setShortUrl(`https://shorturl.com/${Math.random().toString(36).substr(2, 8)}`)
+        setShowResult(true)
+        setSuccess("Short URL created! Sign up to save and track your links.")
+        
+        // Reset form
+        setLongUrl("")
+      }
     } catch (error) {
       console.error("Error shortening URL:", error)
+      setError("Network error. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -31,15 +107,39 @@ const URLShortener = () => {
     navigator.clipboard
       .writeText(shortUrl)
       .then(() => {
-        alert("URL copied to clipboard!")
+        setSuccess("URL copied to clipboard!")
+        setTimeout(() => setSuccess(""), 3000)
       })
       .catch((err) => {
         console.error("Failed to copy: ", err)
+        setError("Failed to copy to clipboard")
       })
   }
 
   const openInNewTab = () => {
     window.open(shortUrl, "_blank")
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('authToken')
+    localStorage.removeItem('userData')
+    setIsLoggedIn(false)
+    setUser(null)
+    setSuccess("Logged out successfully!")
+    setTimeout(() => setSuccess(""), 3000)
+  }
+
+  const generateQRCode = (url: string) => {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(url)}`
+  }
+
+  const downloadQRCode = () => {
+    const link = document.createElement('a')
+    link.href = generateQRCode(shortUrl)
+    link.download = `qr-code-${Date.now()}.png`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   }
 
   return (
@@ -48,11 +148,65 @@ const URLShortener = () => {
         <div className="glow-bg"></div>
         <div className="glow-bg2"></div>
 
-        <div className="auth-logo">
-          <img src="/logo.png" alt="App Logo" style={{ width: "80px", height: "auto", marginBottom: "0.5rem" }} />
-          <h1 className="h1-title">URL Shortener & QR Generator</h1>
-          <p className="auth-subtitle">Transform long URLs into short, shareable links with QR codes</p>
+        {/* Header with Auth Controls */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <div className="auth-logo">
+            <img src="/logo.png" alt="App Logo" style={{ width: "80px", height: "auto", marginBottom: "0.5rem" }} />
+            <h1 className="h1-title">URL Shortener & QR Generator</h1>
+            <p className="auth-subtitle">Transform long URLs into short, shareable links with QR codes</p>
+          </div>
+          
+          {isLoggedIn && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <span style={{ color: '#fff', fontSize: '0.9rem' }}>
+                Welcome, {user?.name || user?.email || 'User'}!
+              </span>
+              <button 
+                onClick={handleLogout}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#fff',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                Logout
+              </button>
+            </div>
+          )}
         </div>
+
+        {/* Success/Error Messages */}
+        {success && (
+          <div style={{
+            background: 'rgba(34, 197, 94, 0.1)',
+            border: '1px solid rgba(34, 197, 94, 0.3)',
+            color: '#22c55e',
+            padding: '0.75rem 1rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            fontSize: '0.9rem'
+          }}>
+            {success}
+          </div>
+        )}
+
+        {error && (
+          <div style={{
+            background: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            color: '#ef4444',
+            padding: '0.75rem 1rem',
+            borderRadius: '8px',
+            marginBottom: '1rem',
+            fontSize: '0.9rem'
+          }}>
+            {error}
+          </div>
+        )}
 
         <div className="main-card">
           <div className="card-header">
@@ -60,25 +214,72 @@ const URLShortener = () => {
             <p className="auth-description">Enter your long URL below to generate a shortened link and QR code</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="url-form">
+          <div onSubmit={handleSubmit} className="url-form">
             <div className="input-wrapper" style={{ flex: "1" }}>
               <input
                 type="url"
                 value={longUrl}
                 onChange={(e) => setLongUrl(e.target.value)}
                 required
+                placeholder="Enter your long URL here..."
                 className="url-input"
               />
             </div>
             <button
-              type="submit"
+              onClick={handleSubmit}
               className="shorten-btn"
               disabled={isLoading || !longUrl}
               style={{ padding: "0.875rem 1rem", minWidth: "120px"}}
             >
               {isLoading ? "Processing..." : "Shorten URL"}
             </button>
-          </form>
+          </div>
+
+          {/* Advanced Options for Logged In Users */}
+          {isLoggedIn && (
+            <div style={{ 
+              marginTop: '1rem', 
+              padding: '1rem', 
+              background: 'rgba(255, 255, 255, 0.05)', 
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              <h4 style={{ color: '#fff', marginBottom: '0.75rem', fontSize: '0.9rem' }}>Advanced Options</h4>
+              
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <div style={{ flex: '1', minWidth: '200px' }}>
+                  <label style={{ display: 'block', color: '#ccc', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                    Custom Short Code (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customShort}
+                    onChange={(e) => setCustomShort(e.target.value)}
+                    placeholder="my-custom-link"
+                    className="url-input"
+                    style={{ fontSize: '0.9rem', padding: '0.5rem 0.75rem' }}
+                  />
+                </div>
+                
+                <div style={{ flex: '0 0 150px' }}>
+                  <label style={{ display: 'block', color: '#ccc', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
+                    Expires in Days
+                  </label>
+                  <select
+                    value={expiresInDays}
+                    onChange={(e) => setExpiresInDays(Number(e.target.value))}
+                    className="url-input"
+                    style={{ fontSize: '0.9rem', padding: '0.5rem 0.75rem' }}
+                  >
+                    <option value={1}>1 Day</option>
+                    <option value={7}>7 Days</option>
+                    <option value={14}>14 Days</option>
+                    <option value={30}>30 Days</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="tabs-container">
             <div className="tabs">
@@ -181,10 +382,15 @@ const URLShortener = () => {
               ) : (
                 <div className="qr-code-content">
                   <div className="qr-code-display">
-                    <img src="/placeholder.svg?height=120&width=120" alt="QR Code" className="qr-code-image" />
+                    <img 
+                      src={generateQRCode(shortUrl)} 
+                      alt="QR Code" 
+                      className="qr-code-image" 
+                      style={{ width: '120px', height: '120px' }}
+                    />
                   </div>
                   <p className="qr-description">Scan this QR code to access your shortened URL</p>
-                  <button className="download-qr-btn">
+                  <button className="download-qr-btn" onClick={downloadQRCode}>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -209,9 +415,15 @@ const URLShortener = () => {
 
           <div className="account-banner">
             <p>Want to save and track your links?</p>
-            <Link to="/register" className="create-account-btn">
-              Create account
-            </Link>
+            {isLoggedIn ? (
+              <a href="/dashboard" className="create-account-btn">
+                Dashboard
+              </a>
+            ) : (
+              <a href="/register" className="create-account-btn">
+                Create account
+              </a>
+            )}
           </div>
         </div>
 

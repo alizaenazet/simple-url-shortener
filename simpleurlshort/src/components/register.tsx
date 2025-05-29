@@ -16,24 +16,65 @@ const Register = () => {
         setIsLoading(true)
         setError("")
 
+        // Validasi client-side
         if (!fullName.trim() || !email.trim() || !password.trim()) {
             setError("All fields are required")
-        } else if (password.length < 8) {
+            setIsLoading(false)
+            return
+        }
+        
+        if (password.length < 8) {
             setError("Password must be at least 8 characters long")
-        } else {
-            try {
-                setIsLoading(true)
-                await new Promise((resolve) => setTimeout(resolve, 1000))
-                navigate("/dashboard")
-            } catch (err) {
-                setError("Registration failed. Please try again.")
-            } finally {
-                setIsLoading(false)
-            }
+            setIsLoading(false)
             return
         }
 
-        setIsLoading(false)
+        try {
+            // Call ke mock API
+            const response = await fetch('https://your-mock-id.mock.pstmn.io/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: email,
+                    password: password
+                }),
+            })
+
+            const data = await response.json()
+
+            if (response.ok && data.status === 'success') {
+                // Registration berhasil
+                console.log('Registration successful:', data)
+                
+                // Simpan data user sesuai API spec (register tidak return token)
+                const userData = {
+                    id: data.data.userId,
+                    username: data.data.username,
+                    email: email,
+                    fullName: fullName 
+                }
+                localStorage.setItem('user', JSON.stringify(userData))
+                
+                // Redirect ke login page 
+                alert("Registration successful! Please log in with your credentials.")
+                navigate("/login")
+            } else {
+                // Handle error dari API
+                if (data.errors && data.errors.length > 0) {
+                    const errorMessages = data.errors.map(err => err.message).join('. ')
+                    setError(errorMessages)
+                } else {
+                    setError(data.message || "Registration failed. Please try again.")
+                }
+            }
+        } catch (err) {
+            console.error('Registration error:', err)
+            setError("Network error. Please check your connection and try again.")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (

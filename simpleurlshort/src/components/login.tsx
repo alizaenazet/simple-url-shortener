@@ -15,24 +15,71 @@ const Login = () => {
         setIsLoading(true)
         setError("")
 
-        if (!password.trim()) {
-            setError("Password cannot be empty")
-        } else if (password.length < 8) {
-            setError("Password must be at least 8 characters long")
-        } else {
-            try {
-                setIsLoading(true)
-                await new Promise((resolve) => setTimeout(resolve, 1000))
-                navigate("/dashboard")
-            } catch (err) {
-                setError("Invalid email or password")
-            } finally {
-                setIsLoading(false)
-            }
+        // Validasi client-side
+        if (!email.trim()) {
+            setError("Email cannot be empty")
+            setIsLoading(false)
             return
         }
-        setIsLoading(false)
+        
+        if (!password.trim()) {
+            setError("Password cannot be empty")
+            setIsLoading(false)
+            return
+        }
+        
+        if (password.length < 8) {
+            setError("Password must be at least 8 characters long")
+            setIsLoading(false)
+            return
+        }
 
+        try {
+            // Call ke mock API
+            const response = await fetch('https://your-mock-id.mock.pstmn.io/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: email, 
+                    password: password
+                }),
+            })
+
+            const data = await response.json()
+
+            if (response.ok && data.status === 'success') {
+                // Login berhasil
+                console.log('Login successful:', data)
+                
+                // Simpan token dan data user sesuai API spec
+                localStorage.setItem('token', data.data.token)
+                
+                // Sesuaikan user object dengan API spec
+                const userData = {
+                    id: data.data.user.userId, 
+                    username: data.data.user.username,
+                    email: email  
+                }
+                localStorage.setItem('user', JSON.stringify(userData))
+                
+                navigate("/dashboard")
+            } else {
+                // Handle error dari API
+                if (data.errors && data.errors.length > 0) {
+                    const errorMessages = data.errors.map(err => err.message).join('. ')
+                    setError(errorMessages)
+                } else {
+                    setError(data.message || "Login failed. Please try again.")
+                }
+            }
+        } catch (err) {
+            console.error('Login error:', err)
+            setError("Network error. Please check your connection and try again.")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     return (
@@ -72,7 +119,13 @@ const Login = () => {
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
                             <label htmlFor="email">Email</label>
-                            <input type="email" id="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                            <input 
+                                type="email" 
+                                id="email" 
+                                value={email} 
+                                onChange={(e) => setEmail(e.target.value)} 
+                                required 
+                            />
                         </div>
 
                         <div className="form-group">
