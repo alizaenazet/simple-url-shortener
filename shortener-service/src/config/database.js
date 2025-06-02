@@ -4,7 +4,7 @@ const { Pool } = pkg;
 
 // Redis configuration
 export const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
+  url: process.env.REDIS_URL || 'redis://localhost:6379'  // Changed from localhost to redis
 });
 
 redisClient.on('error', (err) => {
@@ -17,7 +17,7 @@ redisClient.on('connect', () => {
 
 // PostgreSQL configuration
 export const pgPool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
+  host: process.env.POSTGRES_HOST || 'postgres',  // Changed from localhost to postgres
   port: process.env.POSTGRES_PORT || 5432,
   database: process.env.POSTGRES_DB || 'users',
   user: process.env.POSTGRES_USER || 'postgres',
@@ -128,6 +128,10 @@ export async function initializeDatabases() {
     
   } catch (error) {
     console.error('Database initialization failed:', error);
+    // Add more specific error handling for Redis connection
+    if (error.code === 'ECONNREFUSED') {
+      console.error('Make sure Redis is running and accessible at:', process.env.REDIS_URL || 'redis://redis:6379');
+    }
     throw error;
   }
 }
