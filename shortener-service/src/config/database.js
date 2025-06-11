@@ -2,37 +2,75 @@ import { createClient } from 'redis';
 import pkg from 'pg';
 const { Pool } = pkg;
 
-// Redis configuration
+// Database health status
+export const dbHealth = {
+  redis: { connected: false, lastError: null, lastChecked: null },
+  postgres: { connected: false, lastError: null, lastChecked: null }
+};
+
+// Redis configuration with better error handling
 export const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
+  url: process.env.REDIS_URL || 'redis://localhost:6379',
+  socket: {
+    reconnectStrategy: (retries) => {
+      if (retries > 5) {
+        console.log('Redis: Max reconnection attempts reached, marking as disconnected');
+        dbHealth.redis.connected = false;
+        return false; // Stop trying to reconnect
+      }
+      const delay = Math.min(retries * 50, 3000);
+      console.log(`Redis: Reconnecting in ${delay}ms (attempt ${retries})`);
+      return delay;
+    },
+    connectTimeout: 5000,
+    lazyConnect: true
+  }
 });
 
 redisClient.on('error', (err) => {
-  console.error('Redis Client Error:', err);
+  console.error('Redis Client Error:', err.message);
+  dbHealth.redis.connected = false;
+  dbHealth.redis.lastError = err.message;
+  dbHealth.redis.lastChecked = new Date();
 });
 
 redisClient.on('connect', () => {
   console.log('Connected to Redis');
+  dbHealth.redis.connected = true;
+  dbHealth.redis.lastError = null;
+  dbHealth.redis.lastChecked = new Date();
+});
+
+redisClient.on('end', () => {
+  console.log('Redis connection ended');
+  dbHealth.redis.connected = false;
+  dbHealth.redis.lastChecked = new Date();
 });
 
 // PostgreSQL configuration
 export const pgPool = new Pool({
-  host: process.env.POSTGRES_HOST || 'localhost',
+  host: process.env.POSTGRES_HOST || 'postgres',
   port: process.env.POSTGRES_PORT || 5432,
   database: process.env.POSTGRES_DB || 'users',
   user: process.env.POSTGRES_USER || 'postgres',
   password: process.env.POSTGRES_PASSWORD || 'secret',
   max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 5000,
 });
 
 pgPool.on('connect', () => {
   console.log('Connected to PostgreSQL');
+  dbHealth.postgres.connected = true;
+  dbHealth.postgres.lastError = null;
+  dbHealth.postgres.lastChecked = new Date();
 });
 
 pgPool.on('error', (err) => {
-  console.error('PostgreSQL Pool Error:', err);
+  console.error('PostgreSQL Pool Error:', err.message);
+  dbHealth.postgres.connected = false;
+  dbHealth.postgres.lastError = err.message;
+  dbHealth.postgres.lastChecked = new Date();
 });
 
 // Initialize dummy data for testing
@@ -116,20 +154,135 @@ export async function initializeDummyData() {
   }
 }
 
-// Initialize connections
+// Redis operations with fallback
+export async function getFromRedis(key) {
+  if (!dbHealth.redis.connected) {
+    return null;
+  }
+
+  try {
+    const result = await redisClient.get(key);
+    dbHealth.redis.connected = true;
+    dbHealth.redis.lastError = null;
+    dbHealth.redis.lastChecked = new Date();
+    return result;
+  } catch (error) {
+    console.error(`Redis GET error for key ${key}:`, error.message);
+    dbHealth.redis.connected = false;
+    dbHealth.redis.lastError = error.message;
+    dbHealth.redis.lastChecked = new Date();
+    return null;
+  }
+}
+
+// PostgreSQL operations with error handling
+export async function getFromPostgres(shortCode) {
+  if (!dbHealth.postgres.connected) {
+    return null;
+  }
+
+  const client = await pgPool.connect();
+  try {
+    const result = await client.query(
+      'SELECT long_url FROM short_urls WHERE short_code = $1 AND (expires_at IS NULL OR expires_at > NOW())',
+      [shortCode]
+    );
+    
+    dbHealth.postgres.connected = true;
+    dbHealth.postgres.lastError = null;
+    dbHealth.postgres.lastChecked = new Date();
+    
+    return result.rows.length > 0 ? result.rows[0].long_url : null;
+  } catch (error) {
+    console.error(`PostgreSQL GET error for shortCode ${shortCode}:`, error.message);
+    dbHealth.postgres.connected = false;
+    dbHealth.postgres.lastError = error.message;
+    dbHealth.postgres.lastChecked = new Date();
+    return null;
+  } finally {
+    client.release();
+  }
+}
+
+// Health check functions
+export async function checkRedisHealth() {
+  try {
+    if (!dbHealth.redis.connected) {
+      await redisClient.connect();
+    }
+    await redisClient.ping();
+    dbHealth.redis.connected = true;
+    dbHealth.redis.lastError = null;
+    dbHealth.redis.lastChecked = new Date();
+    return true;
+  } catch (error) {
+    dbHealth.redis.connected = false;
+    dbHealth.redis.lastError = error.message;
+    dbHealth.redis.lastChecked = new Date();
+    return false;
+  }
+}
+
+export async function checkPostgresHealth() {
+  try {
+    await pgPool.query('SELECT 1');
+    dbHealth.postgres.connected = true;
+    dbHealth.postgres.lastError = null;
+    dbHealth.postgres.lastChecked = new Date();
+    return true;
+  } catch (error) {
+    dbHealth.postgres.connected = false;
+    dbHealth.postgres.lastError = error.message;
+    dbHealth.postgres.lastChecked = new Date();
+    return false;
+  }
+}
+
+// Periodic health checks
+function startHealthChecks() {
+  setInterval(async () => {
+    await checkRedisHealth();
+    await checkPostgresHealth();
+  }, 30000); // Check every 30 seconds
+}
+
+// Initialize connections with better error handling
 export async function initializeDatabases() {
+  console.log('Initializing database connections...');
+  
+  // Try Redis connection (non-blocking)
   try {
     await redisClient.connect();
-    await pgPool.query('SELECT NOW()'); // Test PostgreSQL connection
-    console.log('All database connections established');
-    
-    // Initialize dummy data for testing
-    await initializeDummyData();
-    
+    console.log('Redis connected successfully');
   } catch (error) {
-    console.error('Database initialization failed:', error);
-    throw error;
+    console.error('Redis connection failed:', error.message);
+    console.log('Service will continue with PostgreSQL only');
   }
+
+  // Try PostgreSQL connection
+  try {
+    await pgPool.query('SELECT NOW()');
+    console.log('PostgreSQL connected successfully');
+  } catch (error) {
+    console.error('PostgreSQL connection failed:', error);
+    if (!dbHealth.redis.connected) {
+      throw new Error('Both Redis and PostgreSQL connections failed. Service cannot start.');
+    }
+  }
+
+  // Start health monitoring
+  startHealthChecks();
+  
+  // Initialize dummy data if possible
+  try {
+    await initializeDummyData();
+  } catch (error) {
+    console.error('Failed to initialize dummy data:', error.message);
+  }
+
+  console.log('Database initialization completed');
+  console.log(`Redis: ${dbHealth.redis.connected ? 'Connected' : 'Disconnected'}`);
+  console.log(`PostgreSQL: ${dbHealth.postgres.connected ? 'Connected' : 'Disconnected'}`);
 }
 
 // Graceful shutdown

@@ -49,8 +49,16 @@ services:
       args: { PORT: 3002 }
     environment:
       SVC_NAME: shortener-service
+      REDIS_URL: redis://redis:6379
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: secret
     container_name: shortener-service
+    ports: [ "3002:3002" ]            # ← Added host access
     networks:
+      - public                         # ← Added public network
       - internal
       - dbnet
 
@@ -58,7 +66,9 @@ services:
   qr-service:
     build: ./qr-service
     container_name: qr-service
+    ports: [ "8000:8000" ]            # ← Added host access
     networks:
+      - public         
       - internal
 
   # ──────────────────────────────────────────── DATABASES
