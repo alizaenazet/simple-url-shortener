@@ -14,7 +14,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
-app.get('/', (_req, res) => res.json({ name: NAME, status: 'online' }));
+app.get('/', (_req, res) => res.json({ name: NAME, status: 'online boy' }));
 
 // Mount routes
 app.use('/', routes);
@@ -39,6 +39,10 @@ process.on('SIGINT', async () => {
 // Start server
 async function startServer() {
   try {
+    console.log("\n\n\nStarting Express", NAME, "on port", port);
+    console.log("Starting Express", NAME, "on port", port);
+    console.log("Starting Express boy", NAME, "on port", port);
+    
     await initializeDatabases();
     app.listen(port, () => {
       console.log(`${NAME} listening on :${port}`);
