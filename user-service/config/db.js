@@ -1,19 +1,27 @@
+dotenv.config();
+import dotenv from 'dotenv';
+
 import { createClient } from 'redis';
 import pkg from 'pg';
 const { Pool } = pkg;
 
-// Redis configuration
-export const redisClient = createClient({
-  url: process.env.REDIS_URL || 'redis://localhost:6379'
-});
+export let redisClient;
 
-redisClient.on('error', (err) => {
-  console.error('Redis Client Error:', err);
-});
+export function initRedis() {
+  const url = process.env.REDIS_URL || 'redis://localhost:6379';
+  console.log('[REDIS] Connecting to:', url);
+  redisClient = createClient({ url });
 
-redisClient.on('connect', () => {
-  console.log('Connected to Redis');
-});
+  redisClient.on('error', (err) => {
+    console.error('Redis Client Error:', err);
+  });
+
+  redisClient.on('connect', () => {
+    console.log('✅ Connected to Redis');
+  });
+
+  return redisClient.connect();
+}
 
 // PostgreSQL configuration
 export const pgPool = new Pool({
@@ -28,28 +36,30 @@ export const pgPool = new Pool({
 });
 
 pgPool.on('connect', () => {
-  console.log('Connected to PostgreSQL');
+  console.log('✅ Connected to PostgreSQL');
 });
 
 pgPool.on('error', (err) => {
   console.error('PostgreSQL Pool Error:', err);
 });
 
-// Initialize dummy data for testing
 export async function initializeDummyData() {
   try {
     console.log('Initializing dummy data for testing...');
 
-    //TAMBAHAN DI SINIIIIIII
+    // 🔒 Pastikan Redis sudah connect
+    if (!redisClient.isOpen) {
+      await redisClient.connect();
+    }
+
     await pgPool.query(`
-      CREATE TABLE IF NOT EXISTS short_urls (
+      CREATE TABLE IF NOT EXISTS users (
         userid UUID PRIMARY KEY,
         username VARCHAR(100) UNIQUE NOT NULL,
         password TEXT NOT NULL
       )
     `);
 
-    // Create short_urls table if it doesn't exist
     await pgPool.query(`
       CREATE TABLE IF NOT EXISTS short_urls (
         id SERIAL PRIMARY KEY,
@@ -63,40 +73,18 @@ export async function initializeDummyData() {
       )
     `);
 
-    // Insert dummy data into PostgreSQL
     const dummyUrls = [
-      {
-        shortCode: 'google',
-        longUrl: 'https://www.google.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'github',
-        longUrl: 'https://github.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'stackoverflow',
-        longUrl: 'https://stackoverflow.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'youtube',
-        longUrl: 'https://www.youtube.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'test',
-        longUrl: 'https://httpbin.org/json',
-        expiresInDays: 7
-      }
+      { shortCode: 'google', longUrl: 'https://www.google.com', expiresInDays: 30 },
+      { shortCode: 'github', longUrl: 'https://github.com', expiresInDays: 30 },
+      { shortCode: 'stackoverflow', longUrl: 'https://stackoverflow.com', expiresInDays: 30 },
+      { shortCode: 'youtube', longUrl: 'https://www.youtube.com', expiresInDays: 30 },
+      { shortCode: 'test', longUrl: 'https://httpbin.org/json', expiresInDays: 7 }
     ];
 
     for (const url of dummyUrls) {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + url.expiresInDays);
 
-      // Insert into PostgreSQL (with ON CONFLICT to avoid duplicates)
       await pgPool.query(`
         INSERT INTO short_urls (long_url, short_code, expires_at, visits)
         VALUES ($1, $2, $3, $4)
@@ -105,50 +93,36 @@ export async function initializeDummyData() {
           expires_at = EXCLUDED.expires_at
       `, [url.longUrl, url.shortCode, expiresAt, 0]);
 
-      // Insert into Redis with TTL
       const ttlSeconds = url.expiresInDays * 24 * 60 * 60;
       await redisClient.setEx(`shorturl:${url.shortCode}`, ttlSeconds, url.longUrl);
 
-      console.log(`✓ Added dummy URL: ${url.shortCode} -> ${url.longUrl}`);
+      console.log(`✓ Added dummy URL: ${url.shortCode} → ${url.longUrl}`);
     }
 
-    console.log('Dummy data initialized successfully!');
-    console.log('\nTest with these URLs:');
-    dummyUrls.forEach(url => {
-      console.log(`  curl http://localhost:3002/service/redirect/${url.shortCode}`);
-      console.log(`  curl http://localhost:3002/${url.shortCode}`);
-    });
-
+    console.log('✅ Dummy data initialized!');
   } catch (error) {
     console.error('Error initializing dummy data:', error);
-    // Don't throw error here as it shouldn't prevent the service from starting
   }
 }
 
-// Initialize connections
 export async function initializeDatabases() {
   try {
-    await redisClient.connect();
-    await pgPool.query('SELECT NOW()'); // Test PostgreSQL connection
-    console.log('All database connections established');
-    
-    // Initialize dummy data for testing
+    await initRedis();
+    await pgPool.query('SELECT NOW()');
+    console.log('✅ All database connections established');
     await initializeDummyData();
-    
   } catch (error) {
     console.error('Database initialization failed:', error);
     throw error;
   }
 }
 
-// Graceful shutdown
 export async function closeDatabases() {
   try {
-    await redisClient.quit();
+    if (redisClient) await redisClient.quit();
     await pgPool.end();
-    console.log('Database connections closed');
+    console.log('🛑 Database connections closed');
   } catch (error) {
     console.error('Error closing database connections:', error);
   }
-
 }

@@ -38,6 +38,8 @@ services:
     environment:
       SVC_NAME: user-service
     container_name: user-service
+    ports:
+      - "3001:3001"
     networks:
       - internal
       - dbnet
