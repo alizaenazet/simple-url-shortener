@@ -13,8 +13,15 @@ const serviceName = process.env.SVC_NAME || 'user-service';
 app.use(express.json());
 
 // Routes
-app.use('/service/users', userRoutes); // GET user URLs, delete URL, etc
-app.use('/service/auth', authRoutes);  // Register & login
+app.use('/service/users', userRoutes); // User URL management routes
+// app.use('/auth', authRoutes);  // Changed from '/service/auth' to '/auth'
+// Also keeping the original endpoint available for backward compatibility
+app.use('/service/auth', authRoutes);  
+
+// Health check endpoint
+app.get('/service/health', (_req, res) => {
+  res.json({ service: serviceName, status: 'online' });
+});
 
 // Root status check
 app.get('/', (_req, res) => {
