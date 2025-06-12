@@ -8,10 +8,21 @@ class HealthService {
         const results = await Promise.allSettled(
             services.map(async svc => {
                 try {
-                    const response = await httpClient.get(svc.name, '');
-                    return response.data;
+                    // Use the root health endpoint for each service
+                    const response = await httpClient.get(svc.name, 'health');
+                    return { 
+                        name: svc.name, 
+                        status: 'online', 
+                        data: response.data,
+                        lastChecked: new Date().toISOString()
+                    };
                 } catch (error) {
-                    return { name: svc.name, status: 'offline', error: error.message };
+                    return { 
+                        name: svc.name, 
+                        status: 'offline', 
+                        error: error.message,
+                        lastChecked: new Date().toISOString()
+                    };
                 }
             })
         );
@@ -19,7 +30,12 @@ class HealthService {
         return results.map((r, i) =>
             r.status === 'fulfilled'
                 ? r.value
-                : { name: services[i].name, status: 'offline', error: r.reason?.message }
+                : { 
+                    name: services[i].name, 
+                    status: 'offline', 
+                    error: r.reason?.message || 'Unknown error',
+                    lastChecked: new Date().toISOString()
+                }
         );
     }
 }

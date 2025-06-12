@@ -1,9 +1,12 @@
 import { httpClient } from '../../services/httpClient.js';
 
 class UrlService {
-    async create(userId, urlData) {
+    async create(userId, urlData, req) {
         try {
-            const response = await httpClient.post('user', `service/users/${userId}/urls`, urlData);
+            const authHeaders = httpClient.getAuthHeaders(req);
+            const response = await httpClient.post('user', `service/users/${userId}/urls`, urlData, {
+                headers: authHeaders
+            });
             return response.data;
         } catch (error) {
             if (error.message.includes('Circuit breaker is OPEN')) {
@@ -13,9 +16,13 @@ class UrlService {
         }
     }
 
-    async getAll(userId, queryParams) {
+    async getAll(userId, queryParams, req) {
         try {
-            const response = await httpClient.get('user', `service/users/${userId}/urls`, { params: queryParams });
+            const authHeaders = httpClient.getAuthHeaders(req);
+            const response = await httpClient.get('user', `service/users/${userId}/urls`, { 
+                params: queryParams,
+                headers: authHeaders
+            });
             return response.data;
         } catch (error) {
             if (error.message.includes('Circuit breaker is OPEN')) {
@@ -34,9 +41,12 @@ class UrlService {
         }
     }
 
-    async getOne(userId, shortCode) {
+    async getOne(userId, shortCode, req) {
         try {
-            const response = await httpClient.get('user', `service/users/${userId}/urls/${shortCode}`);
+            const authHeaders = httpClient.getAuthHeaders(req);
+            const response = await httpClient.get('user', `service/users/${userId}/urls/${shortCode}`, {
+                headers: authHeaders
+            });
             return response.data;
         } catch (error) {
             if (error.message.includes('Circuit breaker is OPEN')) {
@@ -46,9 +56,12 @@ class UrlService {
         }
     }
 
-    async delete(userId, shortCode) {
+    async delete(userId, shortCode, req) {
         try {
-            await httpClient.delete('user', `service/users/${userId}/urls/${shortCode}`);
+            const authHeaders = httpClient.getAuthHeaders(req);
+            await httpClient.delete('user', `service/users/${userId}/urls/${shortCode}`, {
+                headers: authHeaders
+            });
         } catch (error) {
             if (error.message.includes('Circuit breaker is OPEN')) {
                 throw new Error('URL deletion service is temporarily unavailable. Please try again later.');

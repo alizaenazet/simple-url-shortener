@@ -15,7 +15,7 @@ class UrlController {
                 return res.status(400).json(errorResponse('Validation failed.', validationErrors));
             }
 
-            const result = await urlService.create(userId, { longUrl, customShort, expiresInDays });
+            const result = await urlService.create(userId, { longUrl, customShort, expiresInDays }, req);
             res.status(201).json(successResponse('Short URL created successfully.', result));
 
         } catch (error) {
@@ -36,7 +36,7 @@ class UrlController {
             const userId = req.user.userId;
             const queryParams = req.query;
 
-            const result = await urlService.getAll(userId, queryParams);
+            const result = await urlService.getAll(userId, queryParams, req);
             res.status(200).json(successResponse("User's short URLs retrieved successfully.", result.data));
 
         } catch (error) {
@@ -50,7 +50,7 @@ class UrlController {
             const userId = req.user.userId;
             const { shortCode } = req.params;
 
-            const result = await urlService.getOne(userId, shortCode);
+            const result = await urlService.getOne(userId, shortCode, req);
             res.status(200).json(successResponse('Short URL details retrieved successfully.', result));
 
         } catch (error) {
@@ -78,7 +78,7 @@ class UrlController {
             const userId = req.user.userId;
             const { shortCode } = req.params;
 
-            await urlService.delete(userId, shortCode);
+            await urlService.delete(userId, shortCode, req);
             res.status(200).json(successResponse('Short URL deleted successfully.'));
 
         } catch (error) {
