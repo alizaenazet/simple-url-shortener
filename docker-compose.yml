@@ -16,6 +16,7 @@ services:
       USER_SVC_URL:       http://user-service:3001/
       SHORTENER_SVC_URL:  http://shortener-service:3002/
       QR_SVC_URL:         http://qr-service:8000/
+      JWT_SECRET:         your-super-secret-jwt-key-here  # Change this in production
     networks:
       - public
       - internal
@@ -72,6 +73,7 @@ services:
       - internal
 
   # ──────────────────────────────────────────── DATABASES
+
   postgres:
     image: postgres:16
     container_name: users-db
