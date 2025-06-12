@@ -1,5 +1,4 @@
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import qrcode
 import io
@@ -40,17 +39,3 @@ def generate_qr(req: QRRequest):
             "errors": [{"code": "QR_GENERATION_FAILED", "message": str(e)}]
         })
 
-@app.get("/qr/generate")
-def generate_qr_get(data: str = Query(...)):
-    try:
-        qr = qrcode.QRCode(box_size=10, border=4)
-        qr.add_data(data)
-        qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        return StreamingResponse(buf, media_type="image/png")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to generate QR code: {e}")
