@@ -2,6 +2,16 @@ import { errorResponse } from '../utils/response.js';
 
 export const handleServiceError = (error, defaultMessage) => {
     console.error('Service error:', error.message);
+    console.error('Error details:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        config: {
+            method: error.config?.method,
+            url: error.config?.url,
+            baseURL: error.config?.baseURL
+        }
+    });
     
     // Circuit breaker is open
     if (error.message.includes('Circuit breaker is OPEN')) {
@@ -10,6 +20,17 @@ export const handleServiceError = (error, defaultMessage) => {
             data: errorResponse(
                 'Service temporarily unavailable. Please try again later.',
                 [{ code: 'SERVICE_UNAVAILABLE', message: error.message }]
+            )
+        };
+    }
+    
+    // Network/connection errors (service completely offline)
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND' || error.code === 'ECONNRESET') {
+        return {
+            status: 503,
+            data: errorResponse(
+                'Service temporarily unavailable. Please try again later.',
+                [{ code: 'SERVICE_OFFLINE', message: 'The required service is currently offline or unreachable.' }]
             )
         };
     }
@@ -32,7 +53,7 @@ export const handleServiceError = (error, defaultMessage) => {
 };
 
 export const errorHandler = (err, req, res, next) => {
-    console.error(err.stack);
+    console.error('Gateway error:', err.stack);
     res.status(500).json(errorResponse(
         'An internal server error occurred. Please try again later.',
         [{ code: 'INTERNAL_SERVER_ERROR', message: 'Something went wrong!' }]

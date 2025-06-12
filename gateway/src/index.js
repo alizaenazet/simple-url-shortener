@@ -18,10 +18,10 @@ app.use(express.json());
 setupMiddleware(app);
 
 // Routes
+app.use('/', redirectRoutes);
 app.use('/', healthRoutes);
 app.use('/auth', authRoutes);
 app.use('/urls', urlRoutes);
-app.use('/', redirectRoutes);
 
 // Error handling
 app.use(notFoundHandler);

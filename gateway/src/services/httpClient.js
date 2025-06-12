@@ -23,26 +23,41 @@ class HttpClient {
         const circuitBreaker = this.circuitBreakers.get(serviceName);
         
         return circuitBreaker.execute(async () => {
+            const fullUrl = `${service.url}${path}`;
+            console.log(`Making ${method.toUpperCase()} request to: ${fullUrl}`);
+            
             const axiosOptions = {
                 method,
-                url: `${service.url}${path}`,
+                url: fullUrl,
                 timeout: service.timeout,
                 ...options
             };
 
             if (data) {
                 axiosOptions.data = data;
+                console.log(`Request data:`, JSON.stringify(data, null, 2));
+            }
+
+            // Log headers if present
+            if (axiosOptions.headers) {
+                console.log(`Request headers:`, axiosOptions.headers);
             }
 
             let lastError;
             for (let attempt = 1; attempt <= service.retries; attempt++) {
                 try {
                     const response = await axios(axiosOptions);
+                    console.log(`Request successful: ${response.status}`);
                     return response;
                 } catch (error) {
+                    console.log(`Request failed (attempt ${attempt}): ${error.message}`);
+                    if (error.response) {
+                        console.log(`Response status: ${error.response.status}`);
+                        console.log(`Response data:`, error.response.data);
+                    }
                     lastError = error;
                     if (attempt < service.retries && this.isRetryableError(error)) {
-                        await this.delay(Math.pow(2, attempt - 1) * 1000); // Exponential backoff
+                        await this.delay(Math.pow(2, attempt - 1) * 1000);
                         continue;
                     }
                     break;
@@ -73,6 +88,12 @@ class HttpClient {
 
     async delete(serviceName, path, options = {}) {
         return this.request(serviceName, 'delete', path, null, options);
+    }
+
+    // Helper method to get authorization header from request
+    getAuthHeaders(req) {
+        const authHeader = req.headers.authorization;
+        return authHeader ? { Authorization: authHeader } : {};
     }
 
     getCircuitBreakerStatus() {

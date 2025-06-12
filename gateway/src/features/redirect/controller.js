@@ -5,17 +5,14 @@ class RedirectController {
     async redirect(req, res) {
         try {
             const { shortCode } = req.params;
-            const result = await redirectService.getRedirectUrl(shortCode);
-            
-            // If the shortener service returns the long URL, redirect to it
-            if (result && result.longUrl) {
-                return res.redirect(302, result.longUrl);
-            }
-
-            // If response is HTML (redirect page), send it
-            res.send(result);
+            return res.redirect(302, `http://localhost:3002/${shortCode}`);
 
         } catch (error) {
+            
+            console.log("apper here", error);
+            
+
+
             if (error.response?.status === 404 || error.message.includes('Circuit breaker is OPEN')) {
                 // Return a simple 404 page or JSON based on Accept header
                 const acceptsJson = req.headers.accept && req.headers.accept.includes('application/json');

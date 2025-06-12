@@ -3,7 +3,7 @@ import { httpClient } from '../../services/httpClient.js';
 class AuthService {
     async register(userData) {
         try {
-            const response = await httpClient.post('user', 'service/users/register', userData);
+            const response = await httpClient.post('user', 'service/auth/register', userData);
             return response.data;
         } catch (error) {
             // If user service is down, provide meaningful error
@@ -16,7 +16,7 @@ class AuthService {
 
     async login(credentials) {
         try {
-            const response = await httpClient.post('user', 'service/users/login', credentials);
+            const response = await httpClient.post('user', 'service/auth/login', credentials);
             return response.data;
         } catch (error) {
             // If user service is down, provide meaningful error
