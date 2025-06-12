@@ -79,74 +79,74 @@ export async function initializeDummyData() {
     console.log('Initializing dummy data for testing...');
     
     // Create short_urls table if it doesn't exist
-    await pgPool.query(`
-      CREATE TABLE IF NOT EXISTS short_urls (
-        id SERIAL PRIMARY KEY,
-        short_url_id UUID DEFAULT gen_random_uuid(),
-        user_id UUID,
-        long_url TEXT NOT NULL,
-        short_code VARCHAR(50) UNIQUE NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-        expires_at TIMESTAMP WITH TIME ZONE,
-        visits INTEGER DEFAULT 0
-      )
-    `);
+    // await pgPool.query(`
+    //   CREATE TABLE IF NOT EXISTS short_urls (
+    //     id SERIAL PRIMARY KEY,
+    //     short_url_id UUID DEFAULT gen_random_uuid(),
+    //     user_id UUID,
+    //     long_url TEXT NOT NULL,
+    //     short_code VARCHAR(50) UNIQUE NOT NULL,
+    //     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    //     expires_at TIMESTAMP WITH TIME ZONE,
+    //     visits INTEGER DEFAULT 0
+    //   )
+    // `);
 
-    // Insert dummy data into PostgreSQL
-    const dummyUrls = [
-      {
-        shortCode: 'google',
-        longUrl: 'https://www.google.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'github',
-        longUrl: 'https://github.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'stackoverflow',
-        longUrl: 'https://stackoverflow.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'youtube',
-        longUrl: 'https://www.youtube.com',
-        expiresInDays: 30
-      },
-      {
-        shortCode: 'test',
-        longUrl: 'https://httpbin.org/json',
-        expiresInDays: 7
-      }
-    ];
+    // // Insert dummy data into PostgreSQL
+    // const dummyUrls = [
+    //   {
+    //     shortCode: 'google',
+    //     longUrl: 'https://www.google.com',
+    //     expiresInDays: 30
+    //   },
+    //   {
+    //     shortCode: 'github',
+    //     longUrl: 'https://github.com',
+    //     expiresInDays: 30
+    //   },
+    //   {
+    //     shortCode: 'stackoverflow',
+    //     longUrl: 'https://stackoverflow.com',
+    //     expiresInDays: 30
+    //   },
+    //   {
+    //     shortCode: 'youtube',
+    //     longUrl: 'https://www.youtube.com',
+    //     expiresInDays: 30
+    //   },
+    //   {
+    //     shortCode: 'test',
+    //     longUrl: 'https://httpbin.org/json',
+    //     expiresInDays: 7
+    //   }
+    // ];
 
-    for (const url of dummyUrls) {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + url.expiresInDays);
+    // for (const url of dummyUrls) {
+    //   const expiresAt = new Date();
+    //   expiresAt.setDate(expiresAt.getDate() + url.expiresInDays);
 
-      // Insert into PostgreSQL (with ON CONFLICT to avoid duplicates)
-      await pgPool.query(`
-        INSERT INTO short_urls (long_url, short_code, expires_at, visits)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (short_code) DO UPDATE SET
-          long_url = EXCLUDED.long_url,
-          expires_at = EXCLUDED.expires_at
-      `, [url.longUrl, url.shortCode, expiresAt, 0]);
+    //   // Insert into PostgreSQL (with ON CONFLICT to avoid duplicates)
+    //   await pgPool.query(`
+    //     INSERT INTO short_urls (long_url, short_code, expires_at, visits)
+    //     VALUES ($1, $2, $3, $4)
+    //     ON CONFLICT (short_code) DO UPDATE SET
+    //       long_url = EXCLUDED.long_url,
+    //       expires_at = EXCLUDED.expires_at
+    //   `, [url.longUrl, url.shortCode, expiresAt, 0]);
 
-      // Insert into Redis with TTL
-      const ttlSeconds = url.expiresInDays * 24 * 60 * 60;
-      await redisClient.setEx(`shorturl:${url.shortCode}`, ttlSeconds, url.longUrl);
+    //   // Insert into Redis with TTL
+    //   const ttlSeconds = url.expiresInDays * 24 * 60 * 60;
+    //   await redisClient.setEx(`shorturl:${url.shortCode}`, ttlSeconds, url.longUrl);
 
-      console.log(`✓ Added dummy URL: ${url.shortCode} -> ${url.longUrl}`);
-    }
+    //   console.log(`✓ Added dummy URL: ${url.shortCode} -> ${url.longUrl}`);
+    // }
 
-    console.log('Dummy data initialized successfully!');
-    console.log('\nTest with these URLs:');
-    dummyUrls.forEach(url => {
-      console.log(`  curl http://localhost:3002/service/redirect/${url.shortCode}`);
-      console.log(`  curl http://localhost:3002/${url.shortCode}`);
-    });
+    // console.log('Dummy data initialized successfully!');
+    // console.log('\nTest with these URLs:');
+    // dummyUrls.forEach(url => {
+    //   console.log(`  curl http://localhost:3002/service/redirect/${url.shortCode}`);
+    //   console.log(`  curl http://localhost:3002/${url.shortCode}`);
+    // });
 
   } catch (error) {
     console.error('Error initializing dummy data:', error);
