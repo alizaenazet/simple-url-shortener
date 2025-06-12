@@ -43,6 +43,7 @@ services:
     networks:
       - internal
       - dbnet
+      - public
 
   # ──────────────────────────────────────────── SHORTENER SERVICE
   shortener-service:

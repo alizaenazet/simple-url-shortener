@@ -2,9 +2,9 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
-import { initializeDatabases, closeDatabases } from '../config/db.js';
-import userRoutes from '../routes/userRoutes.js';
-import authRoutes from '../routes/authRoutes.js';
+import { initializeDatabases, closeDatabases } from './config/db.js';
+import userRoutes from './routes/userRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 const port = process.env.PORT || 3001;
