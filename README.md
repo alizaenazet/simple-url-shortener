@@ -890,9 +890,9 @@ Logic:
 **Responses (ke API Gateway):**
 
 - **200 OK** (Jika `longUrl` ditemukan)
-    - Body: `{ "longUrl": "https://target.url.com/path" }`
+    - Body: HTML Page to forwarded into user browser
 - **404 Not Found** (Jika `shortCode` tidak ada di Redis)
-    - Body: `{ "errors": [{ "code": "SHORT_URL_UNAVAILABLE", "message": "..." }] }`
+    - Body: HTML Page to forwarded into user browser
 - **500 Internal Server Error** (Misalnya, jika ada masalah saat mencoba mengirim pesan ke queue atau (jika sync) saat update DB Postgres).
 
 ---

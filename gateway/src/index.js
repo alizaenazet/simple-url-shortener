@@ -1,41 +1,32 @@
 import express from 'express';
-import axios from 'axios';
+import cors from 'cors';
+import { config } from './config/index.js';
+import { setupMiddleware } from './middleware/index.js';
+import { authRoutes } from './features/auth/routes.js';
+import { urlRoutes } from './features/urls/routes.js';
+import { redirectRoutes } from './features/redirect/routes.js';
+import { healthRoutes } from './features/health/routes.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
-const app  = express();
-const port = 8080;
+const app = express();
 
-const services = [
-    { name: 'user',       url: process.env.USER_SVC_URL },
-    { name: 'shortener',  url: process.env.SHORTENER_SVC_URL },
-    { name: 'qr',         url: process.env.QR_SVC_URL }
-];
+// Basic middleware
+app.use(cors());
+app.use(express.json());
 
-app.get('/', async (_, res) => {
-    res.json({ name: 'gateway', status: 'online' });
+// Setup custom middleware
+setupMiddleware(app);
+
+// Routes
+app.use('/', healthRoutes);
+app.use('/auth', authRoutes);
+app.use('/urls', urlRoutes);
+app.use('/', redirectRoutes);
+
+// Error handling
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+app.listen(config.port, () => {
+    console.log(`Gateway listening on :${config.port}`);
 });
-
-
-// health fan-out → gather → respond
-app.get('/health', async (_, res) => {
-    const results = await Promise.allSettled(
-        services.map(async svc => {
-            try {
-                const response = await axios.get(svc.url);
-                return response.data;
-            } catch (error) {
-                throw new Error(`Failed to fetch ${svc.name}`);
-            }
-        })
-    );
-
-    res.json(
-        results.map((r, i) =>
-            r.status === 'fulfilled'
-                ? r.value
-                : { name: services[i].name, status: 'offline' }
-        )
-    );
-});
-
-// This route is duplicated in the original code, I'm keeping just one
-app.listen(port, () => console.log(`Gateway listening on :${port}`));
