@@ -1,4 +1,3 @@
-
 # Code of conduct
 
 ### Branch and commit convention
@@ -685,6 +684,8 @@ Service Tujuan: URL Shortener Service (/service/redirect/{shortCode})
         }
         ```
         
+<!-- TODO: ADD API DESIGN FOR QR CODE GENERATOR SERVICE (WITHOUT JWT) FOR THE API GATEWAY -->
+
 
 ---
 
@@ -915,3 +916,168 @@ Logic:
 - **Logging:** Setiap service harus memiliki logging yang detail untuk setiap request, terutama untuk error dan keputusan penting.
 - **Transaksi Database:** Gunakan transaksi di Postgres untuk operasi yang melibatkan beberapa perubahan (misalnya, saat membuat short URL, penulisan ke tabel `short_urls` harus atomic).
 - **Asynchronous Processing:** Untuk increment analitik, sangat disarankan menggunakan Message Queue untuk memisahkan proses redirect yang kritis waktu dari proses update database yang bisa memiliki latensi lebih tinggi.
+
+
+### 4. QR-CODE Generate
+
+Layanan ini menangani pembuatan QR code untuk short URL yang sudah dibuat. Layanan ini stateless dan tidak memerlukan database, hanya mengkonversi data teks menjadi QR code dalam format base64.
+
+**Prefix internal service:** `/service/qr`
+
+---
+
+#### **4.1. Health Check Endpoint**
+
+##### **Endpoint:** `GET /`
+
+Deskripsi: Memeriksa status kesehatan QR Code Generator Service.
+
+**Responses:**
+
+- **200 OK**
+    - Deskripsi: Service berjalan dengan normal.
+    - Body: `application/json`
+        
+        ```json
+        {
+          "name": "qr-service",
+          "status": "online"
+        }
+        ```
+
+---
+
+#### **4.2. QR Code Generation Endpoint**
+
+##### **Endpoint:** `POST /qr`
+
+Deskripsi: Menghasilkan QR code dalam format base64 dari data yang diberikan (biasanya short URL).
+
+**Request Body:** `application/json`
+
+|**Parameter**|**Tipe**|**Wajib**|**Deskripsi**|**Contoh**|
+|---|---|---|---|---|
+|`data`|string|Ya|Data yang akan dikonversi menjadi QR code (URL, teks, dll).|"https://yourdomain.com/my-cool-link"|
+
+**Responses:**
+
+- **200 OK**
+    - Deskripsi: QR code berhasil dibuat.
+    - Body: `application/json`
+        
+        ```json
+        {
+          "status": "success",
+          "message": "QR code generated.",
+          "data": {
+            "qrBase64": "iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAYAAAA+s9J6AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAADl0RVh0U29mdHdhcmUAbWF0cGxvdGxpYiB2ZXJzaW9uIDMuMC4yLCBodHRwOi8vbWF0cGxvdGxpYi5vcmcvOIA7rQAAB..."
+          },
+          "errors": null
+        }
+        ```
+
+- **400 Bad Request**
+    - Deskripsi: Input tidak valid (data kosong atau tidak sesuai format).
+    - Body: `application/json`
+        
+        ```json
+        {
+          "status": "error",
+          "message": "Validation failed.",
+          "data": null,
+          "errors": [
+            {
+              "field": "data",
+              "message": "Data field is required and cannot be empty."
+            }
+          ]
+        }
+        ```
+
+- **500 Internal Server Error**
+    - Deskripsi: Terjadi kesalahan internal saat membuat QR code.
+    - Body: `application/json`
+        
+        ```json
+        {
+          "status": "error",
+          "message": "Failed to generate QR code.",
+          "data": null,
+          "errors": [
+            {
+              "code": "QR_GENERATION_FAILED",
+              "message": "An error occurred while generating the QR code."
+            }
+          ]
+        }
+        ```
+
+---
+
+#### **4.3. Integrasi dengan API Gateway**
+
+##### **Endpoint Gateway:** `POST /urls/{shortCode}/qr`
+
+Deskripsi: Menghasilkan QR code untuk short URL tertentu milik pengguna yang terautentikasi.
+
+Service Tujuan: 
+1. User Account and Data Service untuk verifikasi kepemilikan URL
+2. QR Code Generator Service untuk pembuatan QR code
+
+**Path Parameters:**
+
+|**Parameter**|**Tipe**|**Wajib**|**Deskripsi**|**Contoh**|
+|---|---|---|---|---|
+|`shortCode`|string|Ya|Kode pendek unik dari short URL yang akan dibuat QR code-nya.|"my-cool-link"|
+
+**Header Wajib:**
+
+|**Header**|**Deskripsi**|**Contoh**|
+|---|---|---|
+|`Authorization`|Token Bearer JWT untuk autentikasi pengguna.|`Bearer <TOKEN_PENGGUNA_ANDA_DISINI>`|
+
+**Responses:**
+
+- **200 OK**
+    - Deskripsi: QR code berhasil dibuat untuk short URL.
+    - Body: `application/json`
+        
+        ```json
+        {
+          "status": "success",
+          "message": "QR code generated for short URL.",
+          "data": {
+            "shortCode": "my-cool-link",
+            "fullShortUrl": "https://yourdomain.com/my-cool-link",
+            "qrBase64": "iVBORw0KGgoAAAANSUhEUgAAAOEAAADhCAYAAAA+s9J6AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAADl0RVh0U29mdHdhcmUAbWF0cGxvdGxpYiB2ZXJzaW9uIDMuMC4yLCBodHRwOi8vbWF0cGxvdGxpYi5vcmcvOIA7rQAAB..."
+          },
+          "errors": null
+        }
+        ```
+
+- **401 Unauthorized** (Sama seperti endpoint lain yang memerlukan autentikasi)
+- **403 Forbidden** (Pengguna tidak memiliki short URL tersebut)
+- **404 Not Found** (Short URL tidak ditemukan)
+- **500 Internal Server Error**
+
+---
+
+#### **4.4. Catatan Implementasi QR Code Service**
+
+- **Stateless Design:** Service ini tidak memiliki state dan tidak terhubung ke database. Hanya menerima input dan menghasilkan QR code.
+- **Format Output:** QR code dikembalikan dalam format base64 PNG untuk memudahkan integrasi dengan frontend.
+- **Konfigurasi QR Code:** 
+  - Box size: 10 (ukuran setiap kotak dalam QR code)
+  - Border: 4 (ukuran border di sekitar QR code)
+  - Fill color: Hitam
+  - Background color: Putih
+- **Error Handling:** Service menangani error dengan struktur respons yang konsisten dengan service lain.
+- **Performance:** Karena stateless, service ini dapat dengan mudah di-scale horizontal sesuai kebutuhan.
+- **Integration Pattern:** API Gateway akan:
+  1. Memverifikasi autentikasi pengguna
+  2. Memverifikasi kepemilikan short URL melalui User Service
+  3. Memanggil QR Service dengan `fullShortUrl` sebagai data
+  4. Mengembalikan hasil QR code ke pengguna
+
+---
+
