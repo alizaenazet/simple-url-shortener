@@ -69,6 +69,42 @@ const URLShortener = () => {
     navigate("/login") 
   }
 
+  // Fixed QR code download function
+  const downloadQRCode = async () => {
+    try {
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shortUrl)}`
+      
+      // Fetch the image as a blob
+      const response = await fetch(qrUrl)
+      const blob = await response.blob()
+      
+      // Create a temporary URL for the blob
+      const url = window.URL.createObjectURL(blob)
+      
+      // Create a temporary anchor element and trigger download
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `qr-code-${Date.now()}.png`
+      document.body.appendChild(link)
+      link.click()
+      
+      // Clean up
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error downloading QR code:', error)
+      // Fallback to simple download
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(shortUrl)}`
+      const link = document.createElement('a')
+      link.href = qrUrl
+      link.download = `qr-code-${Date.now()}.png`
+      link.target = '_blank'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
@@ -475,7 +511,7 @@ const URLShortener = () => {
                     />
                   </div>
                   <p className="qr-description">Scan this QR code to access your shortened URL</p>
-                  <button className="download-qr-btn" onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shortUrl)}`, "_blank")}>
+                  <button className="download-qr-btn" onClick={downloadQRCode}>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
