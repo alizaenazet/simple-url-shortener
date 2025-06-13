@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 const URLShortener = () => {
@@ -13,11 +13,55 @@ const URLShortener = () => {
   const [expiresInDays, setExpiresInDays] = useState(7)
   const [showOptions, setShowOptions] = useState(false)
   const [showLoginPopup, setShowLoginPopup] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [username, setUsername] = useState("")
 
-  const navigate = useNavigate() 
+  const navigate = useNavigate()
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const checkAuthStatus = () => {
+      const token = localStorage.getItem("userToken")
+      const userInfo = localStorage.getItem("user")
+      
+      if (token && userInfo) {
+        try {
+          const userData = JSON.parse(userInfo)
+          setIsLoggedIn(true)
+          setUsername(userData.username || "User")
+        } catch (error) {
+          console.error("Error parsing user data:", error)
+          // Clear invalid data
+          localStorage.removeItem("userToken")
+          localStorage.removeItem("user")
+          setIsLoggedIn(false)
+          setUsername("")
+        }
+      } else {
+        setIsLoggedIn(false)
+        setUsername("")
+      }
+    }
+
+    checkAuthStatus()
+  }, [])
 
   const getAuthToken = (): string | null => {
     return localStorage.getItem("userToken")
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem("userToken")
+    localStorage.removeItem("user")
+    setIsLoggedIn(false)
+    setUsername("")
+    setShowResult(false)
+    setLongUrl("")
+    setShortUrl("")
+    setCustomShortCode("")
+    setExpiresInDays(7)
+    setShowOptions(false)
+    setError(null)
   }
 
   const handleLoginRedirect = () => {
@@ -55,14 +99,39 @@ const URLShortener = () => {
       })
 
       const data = await response.json()
+      
+      // Debug logging to see the actual response structure
+      console.log("API Response:", data)
 
       if (response.ok) {
-        setShortUrl(data.data.fullShortUrl)
-        setShowResult(true)
+        // Handle the nested data structure from your API
+        // Your API returns: { data: { data: { fullShortUrl: "..." } } }
+        let shortUrlValue = ""
+        
+        if (data.data && data.data.data && data.data.data.fullShortUrl) {
+          // Handle nested structure
+          shortUrlValue = data.data.data.fullShortUrl
+        } else if (data.data && data.data.fullShortUrl) {
+          // Handle single level nesting
+          shortUrlValue = data.data.fullShortUrl
+        } else if (data.fullShortUrl) {
+          // Handle direct access
+          shortUrlValue = data.fullShortUrl
+        }
+        
+        if (shortUrlValue) {
+          setShortUrl(shortUrlValue)
+          setShowResult(true)
+        } else {
+          console.error("Could not find fullShortUrl in response:", data)
+          setError("Failed to extract short URL from response. Please try again.")
+        }
       } else {
         if (response.status === 401) {
+          // Token expired or invalid, logout user
+          handleLogout()
           setShowLoginPopup(true) 
-          setError("Your session has expired or you are not logged in. Please log in again.")
+          setError("Your session has expired. Please log in again.")
         } else if (data.errors && data.errors.length > 0) {
           const errorMessages = data.errors.map((err: { message: string }) => err.message).join(", ")
           setError(data.message || errorMessages || "Failed to shorten URL.")
@@ -79,6 +148,11 @@ const URLShortener = () => {
   }
 
   const copyToClipboard = () => {
+    if (!shortUrl) {
+      alert("No URL to copy!")
+      return
+    }
+    
     navigator.clipboard
       .writeText(shortUrl)
       .then(() => {
@@ -91,10 +165,12 @@ const URLShortener = () => {
   }
 
   const openInNewTab = () => {
-    window.open(shortUrl, "_blank")
+    if (shortUrl) {
+      window.open(shortUrl, "_blank")
+    }
   }
 
-//Pop up
+  // Login popup component
   const LoginPopup = () => (
     <div style={{
       position: 'fixed',
@@ -157,6 +233,34 @@ const URLShortener = () => {
       <div className="url-shortener-wrapper">
         <div className="glow-bg"></div>
         <div className="glow-bg2"></div>
+
+        {/* User info and logout button for logged-in users */}
+        {isLoggedIn && (
+          <div style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+            zIndex: 100
+          }}>
+            <span style={{ color: '#e0e0e0', fontSize: '0.9rem' }}>
+              Welcome, {username}
+            </span>
+            <button
+              onClick={handleLogout}
+              className="shorten-btn"
+              style={{
+                padding: '1rem 1.4rem',
+                fontSize: '0.9rem',
+                minWidth: 'auto'
+              }}
+            >
+              Logout
+            </button>
+          </div>
+        )}
 
         <div className="auth-logo">
           <img src="/logo.png" alt="App Logo" style={{ width: "80px", height: "auto", marginBottom: "0.5rem" }} />
@@ -322,7 +426,7 @@ const URLShortener = () => {
             <div className="result-section">
               {activeTab === "shortUrl" ? (
                 <div className="short-url-content">
-                  <p className="result-label">Your shortened URL :</p>
+                  <p className="result-label">Your shortened URL:</p>
                   <div className="url-result">
                     <input type="text" value={shortUrl} readOnly className="result-input" />
                     <button onClick={copyToClipboard} className="copy-btn" title="Copy to clipboard">
@@ -394,11 +498,23 @@ const URLShortener = () => {
             </div>
           )}
 
+          {/* Dynamic account banner based on login status */}
           <div className="account-banner">
-            <p>Want to save and track your links?</p>
-            <Link to="/register" className="create-account-btn">
-              Create account
-            </Link>
+            {isLoggedIn ? (
+              <>
+                <p>Want to manage and track your links?</p>
+                <Link to="/dashboard" className="create-account-btn">
+                  Go to Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <p>Want to save and track your links?</p>
+                <Link to="/register" className="create-account-btn">
+                  Create account
+                </Link>
+              </>
+            )}
           </div>
         </div>
 
