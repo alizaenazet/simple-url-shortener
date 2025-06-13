@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import { urlService } from './service.js';
 import { urlValidator } from './validator.js';
 import { successResponse, errorResponse } from '../../utils/response.js';
@@ -35,9 +36,10 @@ class UrlController {
         try {
             const userId = req.user.userId;
             const queryParams = req.query;
-
+            console.log("COOOOOKKK 🚀");
+            
             const result = await urlService.getAll(userId, queryParams, req);
-            res.status(200).json(successResponse("User's short URLs retrieved successfully.", result.data));
+            res.status(200).json(successResponse("User's short URLs retrieved successfully.", result.data)); 
 
         } catch (error) {
             const errorRes = handleServiceError(error, "Failed to retrieve user's short URLs.");
