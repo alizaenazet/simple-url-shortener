@@ -1,10 +1,9 @@
-"use client"
 import type React from "react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
 const Login = () => {
-    const [email, setEmail] = useState("")
+    const [username, setUsername] = useState("") 
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState("")
@@ -15,19 +14,13 @@ const Login = () => {
         setIsLoading(true)
         setError("")
 
-        // Validasi client-side
-        if (!email.trim()) {
-            setError("Email cannot be empty")
+        // Client-side validation
+        if (!username.trim() || !password.trim()) {
+            setError("All fields are required")
             setIsLoading(false)
             return
         }
-        
-        if (!password.trim()) {
-            setError("Password cannot be empty")
-            setIsLoading(false)
-            return
-        }
-        
+
         if (password.length < 8) {
             setError("Password must be at least 8 characters long")
             setIsLoading(false)
@@ -35,38 +28,30 @@ const Login = () => {
         }
 
         try {
-            // Call ke mock API
-            const response = await fetch('https://your-mock-id.mock.pstmn.io/auth/login', {
+            const response = await fetch(`${import.meta.env.VITE_GATEWAY_URL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    username: email, 
-                    password: password
+                    username, 
+                    password
                 }),
             })
 
             const data = await response.json()
 
             if (response.ok && data.status === 'success') {
-                // Login berhasil
-                console.log('Login successful:', data)
-                
-                // Simpan token dan data user sesuai API spec
                 localStorage.setItem('token', data.data.token)
                 
-                // Sesuaikan user object dengan API spec
                 const userData = {
-                    id: data.data.user.userId, 
-                    username: data.data.user.username,
-                    email: email  
+                    id: data.data.userId,       
+                    username: data.data.username 
                 }
                 localStorage.setItem('user', JSON.stringify(userData))
                 
                 navigate("/dashboard")
             } else {
-                // Handle error dari API
                 if (data.errors && data.errors.length > 0) {
                     const errorMessages = data.errors.map(err => err.message).join('. ')
                     setError(errorMessages)
@@ -104,7 +89,7 @@ const Login = () => {
                             height="25px"
                             viewBox="0 -960 960 960"
                             width="25px"
-                            fill=" #B473C3"
+                            fill="#B473C3"
                             className="auth-icon"
                             style={{ marginRight: "0.2rem", verticalAlign: "middle" }}
                         >
@@ -118,12 +103,12 @@ const Login = () => {
 
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
-                            <label htmlFor="email">Email</label>
+                            <label htmlFor="username">Username</label>
                             <input 
-                                type="email" 
-                                id="email" 
-                                value={email} 
-                                onChange={(e) => setEmail(e.target.value)} 
+                                type="text" 
+                                id="username" 
+                                value={username} 
+                                onChange={(e) => setUsername(e.target.value)} 
                                 required 
                             />
                         </div>
@@ -148,9 +133,7 @@ const Login = () => {
                         Don't have an account? <Link to="/register">Sign up</Link>
                     </div>
                 </div>
-                
             </div>
-            
         </div>
     )
 }

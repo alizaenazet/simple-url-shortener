@@ -1,21 +1,20 @@
-import { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Login from './components/login';
+import Register from './components/register';
+import Shortener from './components/shortener';
+import Dashboard from './components/dashboard';
 
-export default function App() {
-  const [data, setData] = useState([]);
-
-  useEffect(() => {
-    fetch(import.meta.env.VITE_GATEWAY_URL + "/health")
-      .then(r => r.json()).then(setData)
-      .catch(() => setData([{name:"gateway",status:"offline"}]))
-  }, []);
-
+function App() {
   return (
-    <div style={{fontFamily:"sans-serif",padding:"2rem"}}>
-      <h1>System health</h1>
-      <ul>
-        {data.map(({name,status}) =>
-          <li key={name}>{name} : {status}</li>)}
-      </ul>
-    </div>
+    <Routes>
+      {/* Redirect from the root path "/" to "/login" */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/shortener" element={<Shortener />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+    </Routes>
   );
 }
+
+export default App;
