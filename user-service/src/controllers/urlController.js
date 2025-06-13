@@ -60,7 +60,7 @@ export async function create(req, res) {
     }
 
     // Format response according to API spec
-    const fullShortUrl = `${process.env.SHORT_URL_DOMAIN || 'https://yourdomain.com'}/${shortCode}`;
+    const fullShortUrl = `${process.env.SHORT_URL_DOMAIN || 'http://127.0.0.1:8080'}/${shortCode}`;
     
     return res.status(201).json(successResponse('Short URL created successfully.', {
       shortUrlId: data.short_url_id,
@@ -114,7 +114,7 @@ export async function list(req, res) {
     
     // Format response according to API spec
     const formattedUrls = urls.data.map(url => {
-      const fullShortUrl = `${process.env.SHORT_URL_DOMAIN || 'https://yourdomain.com'}/${url.short_code}`;
+      const fullShortUrl = `${process.env.SHORT_URL_DOMAIN || 'http://127.0.0.1:8080'}/${url.short_code}`;
       return {
         shortUrlId: url.short_url_id,
         longUrl: url.long_url,
@@ -160,7 +160,7 @@ export async function detail(req, res) {
     }
 
     // Format response according to API spec
-    const fullShortUrl = `${process.env.SHORT_URL_DOMAIN || 'https://yourdomain.com'}/${url.short_code}`;
+    const fullShortUrl = `${process.env.SHORT_URL_DOMAIN || 'http://127.0.0.1:8080'}/${url.short_code}`;
     const isActive = new Date(url.expires_at) > new Date();
     
     return res.json(successResponse('Short URL details retrieved successfully.', {
