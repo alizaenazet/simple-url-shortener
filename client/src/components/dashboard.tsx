@@ -27,7 +27,7 @@ interface ApiResponse<T> {
   pagination?: Pagination 
 }
 
-const BASE_API_URL = import.meta.env.VITE_GATEWAY_URL;
+const BASE_API_URL = `${import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'}/urls`;
 const SHORT_LINK_BASE_URL = import.meta.env.VITE_SHORT_LINK_BASE_URL || "http://localhost:8080/"; 
 
 const Dashboard = () => {
@@ -59,36 +59,53 @@ const Dashboard = () => {
   const navigate = useNavigate()
 
   const getAuthToken = (): string | null => {
-    return localStorage.getItem("token")
+    return localStorage.getItem("userToken")
   }
 
   // Enhanced function to get user ID from JWT token with better error handling
   const getUserIdFromToken = (): string | null => {
     const token = getAuthToken()
-    if (!token) return null
+    if (!token || token === 'undefined' || token === 'null') {
+      console.log('No valid token found, token value:', token)
+      return null
+    }
     
     try {
+      console.log('Processing token:', token)
+      
       // Split the token and validate it has 3 parts
       const tokenParts = token.split('.')
       if (tokenParts.length !== 3) {
-        console.error('Invalid JWT token format')
+        console.error('Invalid JWT token format - expected 3 parts, got:', tokenParts.length)
+        console.error('Token parts:', tokenParts)
         return null
       }
 
       // Decode the payload (second part of JWT)
       const payload = tokenParts[1]
+      console.log('JWT payload part:', payload)
       
       // Add padding if needed for base64 decoding
       const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4)
       
-      const decodedPayload = JSON.parse(atob(paddedPayload))
-      
-      // Check for userId in different possible field names
-      return decodedPayload.userId || decodedPayload.id || decodedPayload.sub || null
+      try {
+        const decodedPayload = JSON.parse(atob(paddedPayload))
+        console.log('Decoded JWT payload:', decodedPayload)
+        
+        // Check for userId in different possible field names
+        const userId = decodedPayload.userId || decodedPayload.id || decodedPayload.sub || null
+        console.log('Extracted userId:', userId)
+        return userId
+      } catch (parseError) {
+        console.error('Error parsing JWT payload:', parseError)
+        console.error('Payload:', payload)
+        console.error('Padded payload:', paddedPayload)
+        return null
+      }
     } catch (error) {
-      console.error('Error parsing token:', error)
+      console.error('Error processing JWT token:', error)
       // If token is corrupted, remove it and redirect to login
-      localStorage.removeItem("token")
+      localStorage.removeItem("userToken")
       return null
     }
   }
@@ -104,7 +121,7 @@ const Dashboard = () => {
     const userIdFromToken = getUserIdFromToken()
     if (!userIdFromToken) {
       setError("Invalid authentication token. Please log in again.")
-      localStorage.removeItem("token")
+      localStorage.removeItem("userToken")
       navigate("/login")
       return
     }
@@ -135,7 +152,7 @@ const Dashboard = () => {
         status: filter,
       }).toString()
 
-      const response = await fetch(`${BASE_API_URL}/${userId}/urls?${queryParams}`, {
+      const response = await fetch(`${BASE_API_URL}?${queryParams}`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -156,7 +173,7 @@ const Dashboard = () => {
       } else {
         if (response.status === 401) {
           setError("Session expired. Please log in again.")
-          localStorage.removeItem("token")
+          localStorage.removeItem("userToken")
           navigate("/login")
         } else if (result.errors && result.errors.length > 0) {
           setError(result.message || result.errors[0].message || "Failed to fetch links.")
@@ -191,7 +208,8 @@ const Dashboard = () => {
   ]
 
   const handleLogout = () => {
-    localStorage.removeItem("token") 
+    localStorage.removeItem("userToken") 
+    localStorage.removeItem("user")
     navigate("/login")
   }
 
@@ -218,7 +236,7 @@ const Dashboard = () => {
         expiresInDays: createForm.expiresInDays
       }
 
-      const response = await fetch(`${BASE_API_URL}/${userId}/urls`, {
+      const response = await fetch(BASE_API_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -237,7 +255,7 @@ const Dashboard = () => {
       } else {
         if (response.status === 401) {
           setError("Session expired. Please log in again.")
-          localStorage.removeItem("token")
+          localStorage.removeItem("userToken")
           navigate("/login")
         } else if (response.status === 409) {
           setError(result.message || "Custom short code is already taken.")
@@ -272,7 +290,7 @@ const Dashboard = () => {
 
     setLoading(true)
     try {
-      const response = await fetch(`${BASE_API_URL}/${userId}/urls/${shortCode}`, {
+      const response = await fetch(`${BASE_API_URL}/${shortCode}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -288,7 +306,7 @@ const Dashboard = () => {
       } else {
         if (response.status === 401) {
           setError("Session expired. Please log in again.")
-          localStorage.removeItem("token")
+          localStorage.removeItem("userToken")
           navigate("/login")
         } else if (response.status === 403) {
           setError(result.message || "You don't have permission to delete this link.")

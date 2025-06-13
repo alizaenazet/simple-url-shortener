@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type React from "react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
@@ -28,7 +29,9 @@ const Login = () => {
         }
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_GATEWAY_URL}/auth/login`, {
+            // Use direct gateway URL since we're not using Vite proxy
+            const gatewayUrl = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'
+            const response = await fetch(`${gatewayUrl}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -40,13 +43,29 @@ const Login = () => {
             })
 
             const data = await response.json()
+            console.log('Login response:', data) // Debug log
 
             if (response.ok && data.status === 'success') {
-                localStorage.setItem('token', data.data.token)
+                // Handle nested response structure from gateway
+                const actualData = data.data.data || data.data
+                const token = actualData.token
+                const userInfo = actualData.user
+                
+                console.log('Extracted token:', token) // Debug log
+                console.log('Extracted user info:', userInfo) // Debug log
+                
+                if (!token) {
+                    setError("Login failed: No token received from server.")
+                    return
+                }
+                
+                // Store token with the key that shortener component expects
+                localStorage.setItem('userToken', token)
+                console.log('Token stored:', token) // Debug log
                 
                 const userData = {
-                    id: data.data.userId,       
-                    username: data.data.username 
+                    id: userInfo.userId,       
+                    username: userInfo.username 
                 }
                 localStorage.setItem('user', JSON.stringify(userData))
                 

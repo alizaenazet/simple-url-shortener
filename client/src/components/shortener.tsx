@@ -39,7 +39,9 @@ const URLShortener = () => {
     }
 
     try {
-      const response = await fetch("/api/urls", {
+      // Use direct gateway URL since we're not using Vite proxy
+      const gatewayUrl = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'
+      const response = await fetch(`${gatewayUrl}/urls`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -28,7 +28,9 @@ const Register = () => {
         }
 
         try {
-            const response = await fetch(`${import.meta.env.VITE_GATEWAY_URL}/auth/register`, {
+            // Use direct gateway URL since we're not using Vite proxy
+            const gatewayUrl = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'
+            const response = await fetch(`${gatewayUrl}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -42,9 +44,12 @@ const Register = () => {
             const data = await response.json()
 
             if (response.ok && data.status === 'success') {
+                // Handle nested response structure from gateway
+                const actualData = data.data.data || data.data
+                
                 const userData = {
-                    id: data.data.userId,
-                    username: data.data.username
+                    id: actualData.userId,
+                    username: actualData.username
                 }
                 localStorage.setItem('user', JSON.stringify(userData))
 
