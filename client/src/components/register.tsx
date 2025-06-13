@@ -1,10 +1,9 @@
-"use client"
 import type React from "react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 
-const Login = () => {
-    const [email, setEmail] = useState("")
+const Register = () => {
+    const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState("")
@@ -15,19 +14,13 @@ const Login = () => {
         setIsLoading(true)
         setError("")
 
-        // Validasi client-side
-        if (!email.trim()) {
-            setError("Email cannot be empty")
+        // Client-side validation
+        if (!username.trim() || !password.trim()) {
+            setError("All fields are required")
             setIsLoading(false)
             return
         }
-        
-        if (!password.trim()) {
-            setError("Password cannot be empty")
-            setIsLoading(false)
-            return
-        }
-        
+
         if (password.length < 8) {
             setError("Password must be at least 8 characters long")
             setIsLoading(false)
@@ -35,47 +28,43 @@ const Login = () => {
         }
 
         try {
-            // Call ke mock API
-            const response = await fetch('https://your-mock-id.mock.pstmn.io/auth/login', {
+            // Use direct gateway URL since we're not using Vite proxy
+            const gatewayUrl = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'
+            const response = await fetch(`${gatewayUrl}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    username: email, 
-                    password: password
+                    username,
+                    password
                 }),
             })
 
             const data = await response.json()
 
             if (response.ok && data.status === 'success') {
-                // Login berhasil
-                console.log('Login successful:', data)
+                // Handle nested response structure from gateway
+                const actualData = data.data.data || data.data
                 
-                // Simpan token dan data user sesuai API spec
-                localStorage.setItem('token', data.data.token)
-                
-                // Sesuaikan user object dengan API spec
                 const userData = {
-                    id: data.data.user.userId, 
-                    username: data.data.user.username,
-                    email: email  
+                    id: actualData.userId,
+                    username: actualData.username
                 }
                 localStorage.setItem('user', JSON.stringify(userData))
-                
-                navigate("/dashboard")
+
+                alert("Registration successful! Please log in with your credentials.")
+                navigate("/login")
             } else {
-                // Handle error dari API
                 if (data.errors && data.errors.length > 0) {
                     const errorMessages = data.errors.map(err => err.message).join('. ')
                     setError(errorMessages)
                 } else {
-                    setError(data.message || "Login failed. Please try again.")
+                    setError(data.message || "Registration failed. Please try again.")
                 }
             }
         } catch (err) {
-            console.error('Login error:', err)
+            console.error('Registration error:', err)
             setError("Network error. Please check your connection and try again.")
         } finally {
             setIsLoading(false)
@@ -104,27 +93,27 @@ const Login = () => {
                             height="25px"
                             viewBox="0 -960 960 960"
                             width="25px"
-                            fill=" #B473C3"
+                            fill="#B473C3"
                             className="auth-icon"
                             style={{ marginRight: "0.2rem", verticalAlign: "middle" }}
                         >
                             <path d="M481-120v-60h299v-600H481v-60h299q24 0 42 18t18 42v600q0 24-18 42t-42 18H481Zm-55-185-43-43 102-102H120v-60h363L381-612l43-43 176 176-174 174Z" />
                         </svg>
-                        Log in to your account
+                        Create an account
                     </div>
 
-                    <p className="auth-description">Enter your credentials to access your dashboard</p>
+                    <p className="auth-description">Sign up to start creating and tracking your URLs</p>
                     {error && <div className="auth-error">{error}</div>}
 
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
-                            <label htmlFor="email">Email</label>
-                            <input 
-                                type="email" 
-                                id="email" 
-                                value={email} 
-                                onChange={(e) => setEmail(e.target.value)} 
-                                required 
+                            <label htmlFor="username">Username</label>
+                            <input
+                                type="text"
+                                id="username"
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
                             />
                         </div>
 
@@ -140,19 +129,17 @@ const Login = () => {
                         </div>
 
                         <button type="submit" className="auth-button" disabled={isLoading}>
-                            {isLoading ? "Logging in..." : "Log in"}
+                            {isLoading ? "Creating account..." : "Create account"}
                         </button>
                     </form>
 
                     <div className="auth-footer">
-                        Don't have an account? <Link to="/register">Sign up</Link>
+                        Already have an account? <Link to="/login">Log in</Link>
                     </div>
                 </div>
-                
             </div>
-            
         </div>
     )
 }
 
-export default Login
+export default Register

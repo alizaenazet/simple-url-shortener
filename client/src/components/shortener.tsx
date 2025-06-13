@@ -1,103 +1,78 @@
-"use client"
-
 import type React from "react"
-import { useState, useEffect } from "react"
-// import { Link } from "react-router-dom" 
+import { useState } from "react"
+import { Link, useNavigate } from "react-router-dom"
 
 const URLShortener = () => {
   const [longUrl, setLongUrl] = useState("")
-  const [customShort, setCustomShort] = useState("")
-  const [expiresInDays, setExpiresInDays] = useState(7)
   const [shortUrl, setShortUrl] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showResult, setShowResult] = useState(false)
   const [activeTab, setActiveTab] = useState<"shortUrl" | "qrCode">("shortUrl")
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [customShortCode, setCustomShortCode] = useState("")
+  const [expiresInDays, setExpiresInDays] = useState(7)
+  const [showOptions, setShowOptions] = useState(false)
+  const [showLoginPopup, setShowLoginPopup] = useState(false)
 
-  // Cek staus login saat komponen dimuat
-  // Ini akan memeriksa apakah ada token di localStorage
-  useEffect(() => {
-    const token = localStorage.getItem('authToken')
-    const userData = localStorage.getItem('userData')
-    
-    if (token && userData) {
-      setIsLoggedIn(true)
-      setUser(JSON.parse(userData))
-    }
-  }, [])
+  const navigate = useNavigate() 
 
-  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://your-api-gateway.com'
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('authToken')
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    }
+  const getAuthToken = (): string | null => {
+    return localStorage.getItem("userToken")
   }
 
-  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
-    if (e) e.preventDefault()
+  const handleLoginRedirect = () => {
+    setShowLoginPopup(false) 
+    navigate("/login") 
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoading(true)
-    setError("")
-    setSuccess("")
+    setError(null)
+    setShowResult(false)
+
+    const token = getAuthToken()
+    if (!token) {
+      setShowLoginPopup(true)
+      setIsLoading(false)
+      return
+    }
 
     try {
-      if (isLoggedIn) {
-        const response = await fetch(`${API_BASE_URL}/urls`, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify({
-            longUrl,
-            customShort: customShort || undefined,
-            expiresInDays
-          })
-        })
+      // Use direct gateway URL since we're not using Vite proxy
+      const gatewayUrl = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080'
+      const response = await fetch(`${gatewayUrl}/urls`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          longUrl,
+          customShort: customShortCode || undefined,
+          expiresInDays,
+        }),
+      })
 
-        const data = await response.json()
+      const data = await response.json()
 
-        if (response.ok && data.status === 'success') {
-          setShortUrl(data.data.fullShortUrl)
-          setShowResult(true)
-          setSuccess("Short URL created successfully!")
-          
-          // Reset form
-          setLongUrl("")
-          setCustomShort("")
-          setExpiresInDays(7)
-        } else {
-          // Handle API errors
-          if (data.errors && data.errors.length > 0) {
-            setError(data.errors.map(err => err.message).join(', '))
-          } else {
-            setError(data.message || "Failed to create short URL")
-          }
-          
-          if (response.status === 401) {
-            // Token expired or invalid
-            localStorage.removeItem('authToken')
-            localStorage.removeItem('userData')
-            setIsLoggedIn(false)
-            setUser(null)
-            setError("Session expired. Please login again.")
-          }
-        }
-      } else {
-        // Simulate API call for non-authenticated users
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-        setShortUrl(`https://shorturl.com/${Math.random().toString(36).substr(2, 8)}`)
+      if (response.ok) {
+        setShortUrl(data.data.fullShortUrl)
         setShowResult(true)
-        setSuccess("Short URL created! Sign up to save and track your links.")
-        
-        // Reset form
-        setLongUrl("")
+      } else {
+        if (response.status === 401) {
+          setShowLoginPopup(true) 
+          setError("Your session has expired or you are not logged in. Please log in again.")
+        } else if (data.errors && data.errors.length > 0) {
+          const errorMessages = data.errors.map((err: { message: string }) => err.message).join(", ")
+          setError(data.message || errorMessages || "Failed to shorten URL.")
+        } else {
+          setError(data.message || "Failed to shorten URL. Please try again.")
+        }
       }
-    } catch (error) {
-      console.error("Error shortening URL:", error)
-      setError("Network error. Please try again.")
+    } catch (err) {
+      console.error("Error shortening URL:", err)
+      setError("An unexpected error occurred. Please check your network connection.")
     } finally {
       setIsLoading(false)
     }
@@ -107,12 +82,11 @@ const URLShortener = () => {
     navigator.clipboard
       .writeText(shortUrl)
       .then(() => {
-        setSuccess("URL copied to clipboard!")
-        setTimeout(() => setSuccess(""), 3000)
+        alert("URL copied to clipboard!")
       })
       .catch((err) => {
         console.error("Failed to copy: ", err)
-        setError("Failed to copy to clipboard")
+        alert("Failed to copy URL. Please try again manually.")
       })
   }
 
@@ -120,27 +94,63 @@ const URLShortener = () => {
     window.open(shortUrl, "_blank")
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('userData')
-    setIsLoggedIn(false)
-    setUser(null)
-    setSuccess("Logged out successfully!")
-    setTimeout(() => setSuccess(""), 3000)
-  }
-
-  const generateQRCode = (url: string) => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(url)}`
-  }
-
-  const downloadQRCode = () => {
-    const link = document.createElement('a')
-    link.href = generateQRCode(shortUrl)
-    link.download = `qr-code-${Date.now()}.png`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+//Pop up
+  const LoginPopup = () => (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        backgroundColor: '#1a1a2e', 
+        padding: '2rem',
+        borderRadius: '10px',
+        textAlign: 'center',
+        maxWidth: '400px',
+        boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
+        border: '1px solid rgba(255, 255, 255, 0.1)', 
+      }}>
+        <h3 style={{ color: '#e0e0e0', marginBottom: '1rem' }}>Login Required</h3>
+        <p style={{ color: '#ccc', marginBottom: '1.5rem' }}>
+          You need to be logged in to use shorten URLs.
+        </p>
+        <button
+          onClick={handleLoginRedirect}
+          className="shorten-btn" 
+          style={{
+            padding: '0.8rem 1.5rem',
+            marginRight: '1rem', 
+          }}
+        >
+          Go to Login Page
+        </button>
+        <button
+          onClick={() => setShowLoginPopup(false)}
+          style={{
+            background: 'none',
+            border: '1px solid #777',
+            color: '#777',
+            padding: '0.8rem 1.5rem',
+            borderRadius: '5px',
+            cursor: 'pointer',
+            fontSize: '1rem',
+            transition: 'background-color 0.3s ease, color 0.3s ease'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#333'; e.currentTarget.style.color = 'white'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = '#777'; }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <div className="url-shortener-container">
@@ -148,65 +158,11 @@ const URLShortener = () => {
         <div className="glow-bg"></div>
         <div className="glow-bg2"></div>
 
-        {/* Header with Auth Controls */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <div className="auth-logo">
-            <img src="/logo.png" alt="App Logo" style={{ width: "80px", height: "auto", marginBottom: "0.5rem" }} />
-            <h1 className="h1-title">URL Shortener & QR Generator</h1>
-            <p className="auth-subtitle">Transform long URLs into short, shareable links with QR codes</p>
-          </div>
-          
-          {isLoggedIn && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              <span style={{ color: '#fff', fontSize: '0.9rem' }}>
-                Welcome, {user?.name || user?.email || 'User'}!
-              </span>
-              <button 
-                onClick={handleLogout}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  color: '#fff',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Logout
-              </button>
-            </div>
-          )}
+        <div className="auth-logo">
+          <img src="/logo.png" alt="App Logo" style={{ width: "80px", height: "auto", marginBottom: "0.5rem" }} />
+          <h1 className="h1-title">URL Shortener & QR Generator</h1>
+          <p className="auth-subtitle">Transform long URLs into short, shareable links with QR codes</p>
         </div>
-
-        {/* Success/Error Messages */}
-        {success && (
-          <div style={{
-            background: 'rgba(34, 197, 94, 0.1)',
-            border: '1px solid rgba(34, 197, 94, 0.3)',
-            color: '#22c55e',
-            padding: '0.75rem 1rem',
-            borderRadius: '8px',
-            marginBottom: '1rem',
-            fontSize: '0.9rem'
-          }}>
-            {success}
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-            color: '#ef4444',
-            padding: '0.75rem 1rem',
-            borderRadius: '8px',
-            marginBottom: '1rem',
-            fontSize: '0.9rem'
-          }}>
-            {error}
-          </div>
-        )}
 
         <div className="main-card">
           <div className="card-header">
@@ -214,69 +170,95 @@ const URLShortener = () => {
             <p className="auth-description">Enter your long URL below to generate a shortened link and QR code</p>
           </div>
 
-          <div onSubmit={handleSubmit} className="url-form">
+          <form onSubmit={handleSubmit} className="url-form">
             <div className="input-wrapper" style={{ flex: "1" }}>
               <input
                 type="url"
                 value={longUrl}
                 onChange={(e) => setLongUrl(e.target.value)}
+                placeholder="Enter your long URL here"
                 required
-                placeholder="Enter your long URL here..."
                 className="url-input"
               />
             </div>
             <button
-              onClick={handleSubmit}
+              type="submit"
               className="shorten-btn"
               disabled={isLoading || !longUrl}
               style={{ padding: "0.875rem 1rem", minWidth: "120px"}}
             >
               {isLoading ? "Processing..." : "Shorten URL"}
             </button>
+          </form>
+
+          {error && <div className="error-message" style={{ color: "red", marginTop: "1rem" }}>{error}</div>}
+
+          {/* Options Button and Collapsible Fields */}
+          <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
+            <button
+              type="button"
+              className="shorten-btn"
+              onClick={() => {
+                if (!getAuthToken()) {
+                  setShowLoginPopup(true);
+                } else {
+                  setShowOptions(!showOptions);
+                }
+              }}
+              style={{
+                background: 'none',
+                border: '1px solid #777',
+                color: '#777',
+                padding: '0.5rem 1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                marginBottom: showOptions ? '1rem' : '0'
+              }}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0-.33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              {showOptions ? "Hide Options" : "More Options"}
+            </button>
           </div>
 
-          {/* Advanced Options for Logged In Users */}
-          {isLoggedIn && (
-            <div style={{ 
-              marginTop: '1rem', 
-              padding: '1rem', 
-              background: 'rgba(255, 255, 255, 0.05)', 
-              borderRadius: '8px',
-              border: '1px solid rgba(255, 255, 255, 0.1)'
-            }}>
-              <h4 style={{ color: '#fff', marginBottom: '0.75rem', fontSize: '0.9rem' }}>Advanced Options</h4>
-              
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1', minWidth: '200px' }}>
-                  <label style={{ display: 'block', color: '#ccc', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                    Custom Short Code (optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customShort}
-                    onChange={(e) => setCustomShort(e.target.value)}
-                    placeholder="my-custom-link"
-                    className="url-input"
-                    style={{ fontSize: '0.9rem', padding: '0.5rem 0.75rem' }}
-                  />
-                </div>
-                
-                <div style={{ flex: '0 0 150px' }}>
-                  <label style={{ display: 'block', color: '#ccc', fontSize: '0.8rem', marginBottom: '0.25rem' }}>
-                    Expires in Days
-                  </label>
-                  <select
-                    value={expiresInDays}
-                    onChange={(e) => setExpiresInDays(Number(e.target.value))}
-                    className="url-input"
-                    style={{ fontSize: '0.9rem', padding: '0.5rem 0.75rem' }}
-                  >
-                    <option value={1}>1 Day</option>
-                    <option value={7}>7 Days</option>
-                    <option value={14}>14 Days</option>
-                    <option value={30}>30 Days</option>
-                  </select>
-                </div>
+          {showOptions && (
+            <div style={{ marginTop: '0', padding: '1rem', border: '1px solid #333', borderRadius: '8px', background: 'rgba(255,255,255,0.05)' }}>
+              <div className="input-wrapper" style={{ marginBottom: '1rem' }}>
+                <label htmlFor="customShort" style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Custom Short Code (optional):</label>
+                <input
+                  id="customShort"
+                  type="text"
+                  value={customShortCode}
+                  onChange={(e) => setCustomShortCode(e.target.value)}
+                  placeholder="e.g., my-cool-link"
+                  className="url-input"
+                />
+              </div>
+              <div className="input-wrapper">
+                <label htmlFor="expiresInDays" style={{ display: 'block', marginBottom: '0.5rem', color: '#ccc' }}>Expires in Days (1-30):</label>
+                <input
+                  id="expiresInDays"
+                  type="number"
+                  value={expiresInDays}
+                  onChange={(e) => setExpiresInDays(parseInt(e.target.value))}
+                  min="1"
+                  max="30"
+                  required
+                  className="url-input"
+                />
               </div>
             </div>
           )}
@@ -382,15 +364,14 @@ const URLShortener = () => {
               ) : (
                 <div className="qr-code-content">
                   <div className="qr-code-display">
-                    <img 
-                      src={generateQRCode(shortUrl)} 
-                      alt="QR Code" 
-                      className="qr-code-image" 
-                      style={{ width: '120px', height: '120px' }}
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shortUrl)}`}
+                      alt="QR Code"
+                      className="qr-code-image"
                     />
                   </div>
                   <p className="qr-description">Scan this QR code to access your shortened URL</p>
-                  <button className="download-qr-btn" onClick={downloadQRCode}>
+                  <button className="download-qr-btn" onClick={() => window.open(`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(shortUrl)}`, "_blank")}>
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
                       width="16"
@@ -415,15 +396,9 @@ const URLShortener = () => {
 
           <div className="account-banner">
             <p>Want to save and track your links?</p>
-            {isLoggedIn ? (
-              <a href="/dashboard" className="create-account-btn">
-                Dashboard
-              </a>
-            ) : (
-              <a href="/register" className="create-account-btn">
-                Create account
-              </a>
-            )}
+            <Link to="/register" className="create-account-btn">
+              Create account
+            </Link>
           </div>
         </div>
 
@@ -468,6 +443,7 @@ const URLShortener = () => {
           </div>
         </div>
       </div>
+      {showLoginPopup && <LoginPopup />} 
     </div>
   )
 }

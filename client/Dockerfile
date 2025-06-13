@@ -1,7 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /web
 COPY package*.json ./
-RUN npm ci --silent
+RUN npm ci 
 COPY . .
 RUN npm run build
 
