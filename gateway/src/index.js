@@ -6,6 +6,7 @@ import { authRoutes } from './features/auth/routes.js';
 import { urlRoutes } from './features/urls/routes.js';
 import { redirectRoutes } from './features/redirect/routes.js';
 import { healthRoutes } from './features/health/routes.js';
+import { qrRoutes } from './features/qr/routes.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -22,6 +23,7 @@ app.use('/', redirectRoutes);
 app.use('/', healthRoutes);
 app.use('/auth', authRoutes);
 app.use('/urls', urlRoutes);
+app.use('/qr', qrRoutes);
 
 // Error handling
 app.use(notFoundHandler);
